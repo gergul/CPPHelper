@@ -8,6 +8,12 @@
 #pragma warning(push)
 #pragma warning(disable: 28251)
 
+#ifdef ENABLE_BACKUP_RESTORE
+	#if ENABLE_BACKUP_RESTORE >=2
+	extern DWORD REG_OPTION = 0;
+	#endif
+#endif
+
 //过滤指定字符
 LPCWSTR StrFilter(LPCWSTR SrcStr, LPCWSTR IgnoreStr)
 {
@@ -848,7 +854,7 @@ const BYTE FAT_PBR[] =
 
 LSTATUS DiskUpdateBootCode(LPCWSTR BootPartition)
 {
-	CHFile hRootPath = CreateFile(BootPartition, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_OPTION, 0);
+	CHFile hRootPath = CreateFile(BootPartition, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 
 	if (hRootPath.IsInvalid())
 		return GetLastError_s();
@@ -957,7 +963,7 @@ LSTATUS DiskUpdateBootCode(LPCWSTR BootPartition)
 		return GetLastError_s();
 	}
 
-	hRootPath = CreateFile(StrFormat(L"\\\\.\\PhysicalDrive%u", PhysicalOffsets.PhysicalOffset->DiskNumber), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_OPTION, 0);
+	hRootPath = CreateFile(StrFormat(L"\\\\.\\PhysicalDrive%u", PhysicalOffsets.PhysicalOffset->DiskNumber), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 
 	if (hRootPath.IsInvalid())
 		return GetLastError_s();
@@ -1024,7 +1030,7 @@ LSTATUS DiskUpdateBootCode(LPCWSTR BootPartition)
 
 LSTATUS DiskGetPartitionStyle(LPCWSTR Partition, PARTITION_STYLE* pPartitionStyle)
 {
-	CHFile hRootPath = CreateFile(Partition, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_OPTION, 0);
+	CHFile hRootPath = CreateFile(Partition, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 
 	if (hRootPath.IsInvalid())
 		return GetLastError_s();
@@ -1059,18 +1065,94 @@ CString Guid2Str(const GUID& guid)
 	return Temp;
 }
 
+template<class Ch>
+bool Str2Guid_t(const Ch* String, GUID& Guid)
+{
+	if (*String == L'{')
+	{
+		//{0ce4991b-e6b3-4b16-b23c-5e0d9250e5d9}
+		if (StrLen(String) != 38 || String[37] != Ch('}') || String[38] != Ch('\0'))
+		{
+			return false;
+		}
+
+		++String;
+	}
+	else
+	{
+		//0ce4991b-e6b3-4b16-b23c-5e0d9250e5d9
+		if (StrLen(String) != 36 || String[36] != Ch('\0'))
+		{
+			return false;
+		}
+	}
+
+
+	for (int index = 0; index != 36; ++index)
+	{
+		switch (index)
+		{
+		case 8:
+		case 13:
+		case 18:
+		case 23:
+			if (String[index] != Ch('-'))
+				return false;
+			break;
+		default:
+			if (String[index] >= Ch('0') && String[index] <= ('9')
+				|| String[index] >= Ch('A') && String[index] <= Ch('F')
+				|| String[index] >= Ch('a') && String[index] <= Ch('f'))
+			{
+
+			}
+			else
+			{
+				return false;
+			}
+
+			break;
+		}
+	}
+
+
+	Guid.Data1 = Char2Hex(String[0]) << 28 | Char2Hex(String[1]) << 24 | Char2Hex(String[2]) << 20 | Char2Hex(String[3]) << 16
+		| Char2Hex(String[4]) << 12 | Char2Hex(String[5]) << 8 | Char2Hex(String[6]) << 4 | Char2Hex(String[7]) << 0;
+
+	Guid.Data2 = Char2Hex(String[9]) << 12 | Char2Hex(String[10]) << 8 | Char2Hex(String[11]) << 4 | Char2Hex(String[12]) << 0;
+
+	Guid.Data3 = Char2Hex(String[14]) << 12 | Char2Hex(String[15]) << 8 | Char2Hex(String[16]) << 4 | Char2Hex(String[17]) << 0;
+
+	Guid.Data4[0] = Char2Hex(String[19]) << 4 | Char2Hex(String[20]) << 0;
+	Guid.Data4[1] = Char2Hex(String[21]) << 4 | Char2Hex(String[22]) << 0;
+	Guid.Data4[2] = Char2Hex(String[24]) << 4 | Char2Hex(String[25]) << 0;
+	Guid.Data4[3] = Char2Hex(String[26]) << 4 | Char2Hex(String[27]) << 0;
+	Guid.Data4[4] = Char2Hex(String[28]) << 4 | Char2Hex(String[29]) << 0;
+	Guid.Data4[5] = Char2Hex(String[30]) << 4 | Char2Hex(String[31]) << 0;
+	Guid.Data4[6] = Char2Hex(String[32]) << 4 | Char2Hex(String[33]) << 0;
+	Guid.Data4[7] = Char2Hex(String[34]) << 4 | Char2Hex(String[35]) << 0;
+
+	return true;
+}
+
+bool Str2Guid(LPCWSTR String, GUID& Guid)
+{
+	return Str2Guid_t(String, Guid);
+}
+
+bool Str2Guid(LPCSTR String, GUID& Guid)
+{
+	return Str2Guid_t(String, Guid);
+}
+
+
 GUID Str2Guid(LPCWSTR String)
 {
-	/*if (*String == L'{')
-	String++;*/
 	GUID Temp = {};
 
-	auto hr=CLSIDFromString((LPOLESTR)String, &Temp);
+	auto bSuccess = Str2Guid(String, Temp);
 
-	assert(hr==S_OK);
-	/*swscanf(String, L"%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-	&Temp.Data1, &Temp.Data2, &Temp.Data3, Temp.Data4,Temp.Data4 + 1,
-	Temp.Data4 + 2, Temp.Data4 + 3, Temp.Data4 + 4, Temp.Data4 + 5, Temp.Data4 + 6, Temp.Data4 + 7);*/
+	assert(bSuccess);
 
 	return Temp;
 }
@@ -1539,8 +1621,19 @@ HRESULT IsoCreateFileByPath(LPCWSTR pIsoPath, LPCWSTR SrcDir, LPCWSTR VolumeName
 	{
 		return hr;
 	}
+
+	struct MediaInfo
+	{
+		IMAPI_MEDIA_PHYSICAL_TYPE Type;
+		LONG FreeMediaBlocks;
+	};
 	
-	const IMAPI_MEDIA_PHYSICAL_TYPE MediaTypes[] = { IMAPI_MEDIA_TYPE_DVDPLUSR ,IMAPI_MEDIA_TYPE_DVDDASHR, IMAPI_MEDIA_TYPE_DVDPLUSR_DUALLAYER ,IMAPI_MEDIA_TYPE_DVDDASHR_DUALLAYER,IMAPI_MEDIA_TYPE_HDDVDROM };
+	const MediaInfo MediaTypes[]=
+	{
+		{ IMAPI_MEDIA_TYPE_DVDPLUSR, 2295104 },
+		{ IMAPI_MEDIA_TYPE_DVDPLUSR_DUALLAYER, 4173824 },
+		{ IMAPI_MEDIA_TYPE_HDDVDROM, 62500864 },
+	};
 
 	std::vector<IBootOptions*> vBootOptions;
 
@@ -1630,9 +1723,11 @@ HRESULT IsoCreateFileByPath(LPCWSTR pIsoPath, LPCWSTR SrcDir, LPCWSTR VolumeName
 	//添加一个目录树到镜像
 	CComBSTR TreeRoot(pSrcDir);
 
-	for (int i = 0;i != ArraySize(MediaTypes);++i)
+	for(auto& Info : MediaTypes)
 	{
-		pSystemImage->ChooseImageDefaultsForMediaType(MediaTypes[i]);
+		pSystemImage->ChooseImageDefaultsForMediaType(Info.Type);
+
+		pSystemImage->put_FreeMediaBlocks(Info.FreeMediaBlocks);
 
 		hr = pRootDirItem->AddTree(TreeRoot, FALSE);
 
@@ -1783,6 +1878,34 @@ LSTATUS Binary2Base64(const void* Src, DWORD ccbSrc, CString& Base64String)
 	return ERROR_SUCCESS;
 }
 
+LSTATUS Base642Binary(BYTE* pBinary, DWORD& ccbBinary, LPCSTR Base64String, DWORD cchString)
+{
+	if (cchString == -1)
+		cchString = StrLen(Base64String);
+
+	DWORD nLenOut = ccbBinary;
+
+	if (!CryptStringToBinaryA(
+		Base64String, cchString,
+		CRYPT_STRING_BASE64,
+		pBinary, &ccbBinary,
+		NULL,        // pdwSkip (not needed)
+		NULL         // pdwFlags (not needed)
+	))
+	{
+		auto lStatus = GetLastError_s();
+
+		if (lStatus == ERROR_MORE_DATA)
+		{
+			ccbBinary = cchString;
+		}
+
+		return lStatus;
+	}
+
+	return ERROR_SUCCESS;
+}
+
 LSTATUS Base642Binary(BYTE* pBinary, DWORD& ccbBinary, LPCWSTR Base64String, DWORD cchString)
 {
 	if (cchString == -1)
@@ -1811,7 +1934,9 @@ LSTATUS Base642Binary(BYTE* pBinary, DWORD& ccbBinary, LPCWSTR Base64String, DWO
 	return ERROR_SUCCESS;
 }
 
-LSTATUS Base642Binary(CStringA& Binary, LPCWSTR Base64String, DWORD cchString)
+
+template<class Ch>
+LSTATUS Base642BinaryT(CStringA& Binary, const Ch* Base64String, DWORD cchString)
 {
 	if (cchString == -1)
 		cchString = StrLen(Base64String);
@@ -1832,6 +1957,16 @@ LSTATUS Base642Binary(CStringA& Binary, LPCWSTR Base64String, DWORD cchString)
 	Binary.ReleaseBufferSetLength(nLenOut);
 
 	return ERROR_SUCCESS;
+}
+
+LSTATUS Base642Binary(CStringA& Binary, LPCSTR Base64String, DWORD cchString)
+{
+	return Base642BinaryT(Binary, Base64String, cchString);
+}
+
+LSTATUS Base642Binary(CStringA& Binary, LPCWSTR Base64String, DWORD cchString)
+{
+	return Base642BinaryT(Binary, Base64String, cchString);
 }
 
 void ReverseBinary(BYTE* pBinary, DWORD ccbBinary)
@@ -1921,7 +2056,7 @@ LSTATUS GetHashByFilePath(LPCWSTR FilePath, ALG_ID Algid, BYTE* pHashData, DWORD
 			FILE_SHARE_READ,
 			NULL,
 			OPEN_EXISTING,
-			FILE_OPTION,
+			FILE_FLAG_BACKUP_SEMANTICS,
 			NULL);
 
 		if (hFile.IsInvalid())
@@ -2146,7 +2281,7 @@ LSTATUS CreateFileByData(LPCWSTR FilePath, const void* Data, DWORD ccbData)
 
 	LSTATUS lStatus = ERROR_SUCCESS;
 
-	auto thFile = CreateFile(FilePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL| FILE_OPTION, 0);
+	auto thFile = CreateFile(FilePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL| FILE_FLAG_BACKUP_SEMANTICS, 0);
 
 	if (thFile != INVALID_HANDLE_VALUE)
 	{
@@ -2248,7 +2383,7 @@ HANDLE OpenDriver(LPCWSTR DriverPath, DWORD dwDesiredAccess)
 	if (_RootPath[_RootPath.GetLength() - 1] == L'\\')
 		_RootPath.ReleaseBufferSetLength(_RootPath.GetLength() - 1);
 
-	return CreateFileW(_RootPath, dwDesiredAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_OPTION, 0);
+	return CreateFileW(_RootPath, dwDesiredAccess, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 }
 
 LSTATUS GetDriverLayout(HANDLE hDevice, CStringA& Buffer)
@@ -2599,7 +2734,7 @@ bool IsProcExists(HANDLE hFile, LPCSTR ProcName)
 
 DWORD GetFileArchitecture(LPCWSTR FilePath)
 {
-	CHFile hFile = CreateFile(FilePath, GENERIC_READ, FILE_SHARE_DELETE | FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_OPTION, NULL);
+	CHFile hFile = CreateFile(FilePath, GENERIC_READ, FILE_SHARE_DELETE | FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 
 	if (hFile.IsInvalid())
 		return PROCESSOR_ARCHITECTURE_UNKNOWN;
@@ -2951,7 +3086,15 @@ byte Char2Hex(wchar_t ch)
 	}
 }
 
-HRESULT HresultFromBool()
+HRESULT HresultFromBool(BOOL bSuccess)
+{
+	if (bSuccess)
+		return S_OK;
+	else
+		return HresultFromBoolFalse();
+}
+
+HRESULT HresultFromBoolFalse()
 {
 	auto lStatus = GetLastError();
 
@@ -2969,7 +3112,15 @@ HRESULT HresultFromBool()
 	}
 }
 
-LSTATUS GetLastError_s()
+LSTATUS GetLastError_s(BOOL bSuccess)
+{
+	if (bSuccess)
+		return ERROR_SUCCESS;
+	else
+		return GetLastErrorFromBoolFalse();
+}
+
+LSTATUS GetLastErrorFromBoolFalse()
 {
 	auto lStatus = GetLastError();
 

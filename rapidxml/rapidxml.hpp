@@ -383,6 +383,18 @@ namespace rapidxml
             return node;
         }
 
+		template<std::size_t name_size>
+		xml_node<Ch> *allocate_node_static(node_type type, const Ch(&name)[name_size], const Ch *value, std::size_t value_size)
+		{
+			return allocate_node(type, name, value, name_size - 1, value_size);
+		}
+
+		template<std::size_t name_size, std::size_t value_size>
+		xml_node<Ch> *allocate_node_static(node_type type, const Ch(&name)[name_size], const Ch(&value)[value_size])
+		{
+			return allocate_node(type, name, value, name_size - 1, value_size - 1);
+		}
+
         //! Allocates a new attribute from the pool, and optionally assigns name and value to it.
         //! If the allocation request cannot be accomodated, this function will throw <code>std::bad_alloc</code>.
         //! If exceptions are disabled by defining RAPIDXML_NO_EXCEPTIONS, this function
@@ -413,6 +425,18 @@ namespace rapidxml
             }
             return attribute;
         }
+
+		template<std::size_t name_size, std::size_t value_size>
+		xml_attribute<Ch> *allocate_attribute_static(const Ch(&name)[name_size], const Ch(&value)[value_size])
+		{
+			return allocate_attribute(name, value, name_size - 1, value_size - 1);
+		}
+
+		template<std::size_t name_size>
+		xml_attribute<Ch> *allocate_attribute_static(const Ch(&name)[name_size], const Ch *value, std::size_t value_size)
+		{
+			return allocate_attribute(name, value, name_size - 1, value_size);
+		}
 
 		Ch *allocate_string(const Ch *source)
 		{
@@ -810,9 +834,9 @@ namespace rapidxml
         //! \return Pointer to document that contains this attribute, or 0 if there is no parent document.
         xml_document<Ch> *document() const
         {
-            if (m_parent)
+            if (this->m_parent)
             {
-				return m_parent->pDocument;
+				return this->m_parent->pDocument;
             }
             else
                 return 0;
@@ -979,7 +1003,9 @@ namespace rapidxml
         //! \return Pointer to found child, or 0 if not found.
         xml_node<Ch> *last_node(const Ch *name = 0, std::size_t name_size = 0, bool case_sensitive = true) const
         {
-            assert(m_first_node);  // Cannot query for last child if node has no children
+			if (!m_first_node)
+				return NULL;
+
             if (name)
             {
                 if (name_size == 0)

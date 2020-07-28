@@ -54,7 +54,7 @@ static FNOPEN(fnFileOpen)
 		FILE_SHARE_READ,
 		NULL,
 		dwCreationDisposition,
-		FILE_ATTRIBUTE_NORMAL| FILE_OPTION,
+		FILE_ATTRIBUTE_NORMAL| FILE_FLAG_BACKUP_SEMANTICS,
 		NULL);
 }
 
@@ -265,9 +265,17 @@ static LSTATUS CabExtractFile(
 	if (!hfdi)
 		return ERROR_FUNCTION_FAILED;
 
+	auto szExtractPathUTF8 = Unicode2UTF8(ExtractPath);
+
+	if (szExtractPathUTF8.IsEmpty())
+		return ERROR_PATH_NOT_FOUND;
+
+	if (szExtractPathUTF8[szExtractPathUTF8.GetLength() - 1] != '\\')
+		szExtractPathUTF8 += '\\';
+
 	LSTATUS lStatus = ERROR_SUCCESS;
 
-	if (!FDICopy(hfdi, (LPSTR)Unicode2UTF8( CabFilePath).GetString(), "", 0, [](FDINOTIFICATIONTYPE fdint, PFDINOTIFICATION    pfdin)->INT_PTR
+	if (!FDICopy(hfdi, (LPSTR)Unicode2UTF8( CabFilePath).GetString(), (LPSTR)"", 0, [](FDINOTIFICATIONTYPE fdint, PFDINOTIFICATION    pfdin)->INT_PTR
 	{
 		INT_PTR iResult = 0;
 
@@ -276,22 +284,11 @@ static LSTATUS CabExtractFile(
 		{
 		case fdintCOPY_FILE:
 		{
-			auto FileName = StrRChrA(pfdin->psz1, NULL, '\\');
-
 			CStringA FilePath = (LPCSTR)pfdin->pv;
 
-			if (FileName)
-			{
-				FilePath.Append(pfdin->psz1, FileName - pfdin->psz1);
+			FilePath += pfdin->psz1;
 
-				CreateDirectoryW(UTF8ToUnicode(FilePath, FilePath.GetLength()), NULL);
-
-				FilePath += FileName;
-			}
-			else
-			{
-				FilePath += pfdin->psz1;
-			}
+			CreateRoot(UTF8ToUnicode(FilePath, FilePath.GetLength()));
 
 			iResult = fnFileOpen(FilePath.GetBuffer(), _O_WRONLY | _O_CREAT, 0);
 
@@ -327,7 +324,7 @@ static LSTATUS CabExtractFile(
 
 		return iResult;
 
-	}, NULL, (void*)Unicode2UTF8(ExtractPath).GetString()))
+	}, NULL, (void*)szExtractPathUTF8.GetString()))
 	{
 		lStatus = ERROR_FUNCTION_FAILED;
 	}

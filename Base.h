@@ -16,7 +16,7 @@
 
 
 //计算数组长度
-#define ArraySize(Array)  (sizeof(Array)/sizeof(*Array))
+#define ArraySize(Array)  _countof(Array)
 
 
 //生成版本号
@@ -32,11 +32,14 @@
 
 
 #ifdef ENABLE_BACKUP_RESTORE
-#define FILE_OPTION FILE_FLAG_BACKUP_SEMANTICS
-#define REG_OPTION REG_OPTION_BACKUP_RESTORE
+	#if ENABLE_BACKUP_RESTORE >=2
+	//该模式根据实际情况动态调整
+	extern DWORD REG_OPTION;
+	#else
+	#define REG_OPTION REG_OPTION_BACKUP_RESTORE
+	#endif
 #else
-#define FILE_OPTION 0
-#define REG_OPTION 0
+	#define REG_OPTION 0
 #endif
 
 _Success_(return == ERROR_SUCCESS)
@@ -98,6 +101,13 @@ HRESULT IsoCreateFileByPath(
 	);
 
 #endif
+
+_Check_return_
+LSTATUS Base642Binary(
+	_Out_                      CStringA& Binary,
+	_In_NLS_string_(cchString) LPCSTR    Base64String,
+	_In_                       DWORD     cchString
+	);
 
 _Check_return_
 LSTATUS Base642Binary(
@@ -387,11 +397,19 @@ CStringA HexString2Binary(
 	);
 
 
-HRESULT HresultFromBool();
+HRESULT HresultFromBool(
+	_In_ BOOL bSuccess = FALSE
+	);
+
+HRESULT HresultFromBoolFalse();
 
 //安全版GetLastError，必定返回一个错误代码。
 _Ret_
-LSTATUS GetLastError_s();
+LSTATUS GetLastError_s(
+	_In_ BOOL bSuccess = FALSE
+	);
+
+LSTATUS GetLastErrorFromBoolFalse();
 
 //检测是否是兼容模式
 _Check_return_ _Success_(return !=-1)
@@ -410,3 +428,50 @@ _CRTALLOCATOR LPCWSTR __cdecl FormatLongString(_In_z_ LPCWSTR _Format, ...);
 LSTATUS __fastcall ModuleAddRef(
 	_In_ HMODULE hModule
 	);
+
+namespace internal
+{
+
+	template<class T>
+	class range_based_for_container_array
+	{
+	private:
+		T* pBegin;
+		T* pEnd;
+	public:
+		__forceinline __fastcall range_based_for_container_array(T* __pBegin, T* __pEnd)
+			: pBegin(__pBegin)
+			, pEnd(__pEnd)
+		{
+
+		}
+
+		__forceinline T* begin()
+		{
+			return pBegin;
+		}
+
+		__forceinline T* end()
+		{
+			return pEnd;
+		}
+	};
+}
+
+
+template<class T>
+static
+__forceinline
+internal::range_based_for_container_array<T> __fastcall range_based_for(T* pData, size_t Count)
+{
+	return internal::range_based_for_container_array<T>(pData, pData + Count);
+}
+
+
+template<class T>
+static
+__forceinline
+internal::range_based_for_container_array<T> __fastcall range_based_for(T* pBegin, T* pEnd)
+{
+	return internal::range_based_for_container_array<T>(pBegin, pEnd);
+}

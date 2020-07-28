@@ -172,12 +172,12 @@ Start:
 	hr=Info.InternetOpenW(lpszAgent);
 	
 	if (hr!=S_OK)
-		return HresultFromBool();
+		return hr;
 
 	hr=Info.InternetConnectW();
 
 	if (hr!=S_OK)
-		return HresultFromBool();
+		return hr;
 
 		
 
@@ -185,7 +185,7 @@ Start:
 	hr=Info.HttpOpenRequestW();
 
 	if (hr!=S_OK)
-		return HresultFromBool();
+		return hr;
 
 	
 	UINT64 FileSize = 0, UsedSize = 0;
@@ -257,8 +257,11 @@ Start:
 		case HTTP_STATUS_PARTIAL_CONTENT:
 			//支持断点续传
 			break;
+		case HTTP_STATUS_OK:
 		case HTTP_STATUS_RESET_CONTENT:
 			//不支持断点续传
+		case 416:
+			//超出了实际范围
 			UsedSize = dwBytesRead = 0;
 			pStream->put_Size(0);
 			break;
@@ -349,8 +352,11 @@ Start:
 					//支持断点续传
 					continue;
 					break;
+				case HTTP_STATUS_OK:
 				case HTTP_STATUS_RESET_CONTENT:
 					//不支持断点续传
+				case 416:
+					//超出了实际范围
 					UsedSize = dwBytesRead = 0;
 					pStream->put_Size(0);
 					break;

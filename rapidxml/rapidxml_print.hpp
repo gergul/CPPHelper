@@ -28,21 +28,12 @@ namespace rapidxml
         // Internal character operations
     
         // Copy characters from given range to given output iterator
-		template<class Ch, class CStringT>
-		inline void copy_chars(const Ch *Str, DWORD cStr, CStringT& out)
-		{
-			DWORD OldLength= out.GetLength();
-
-			memcpy(out.GetBufferSetLength(OldLength + cStr)+ OldLength, Str, cStr*sizeof(Ch));
-		}
-   //     template<class Ch, class CStringT>
-   //     inline void copy_chars(const Ch *begin, const Ch *end, CStringT& out)
-   //     {
-			//copy_chars(begin, end- begin, out);
-   //         //while (begin != end)
-   //         //    out+= *begin++;
-   //         //return out;
-   //     }
+        template<class Ch, class CStringT>
+        inline void copy_chars(const Ch *begin, const Ch *end, CStringT& out)
+        {
+            while (begin != end)
+                out+= *begin++;
+        }
         
         // Copy characters from given range to given output iterator and expand
         // characters into references (&lt; &gt; &apos; &quot; &amp;)
@@ -109,8 +100,6 @@ namespace rapidxml
 		template<class Ch, class CStringT>
 		inline void fill_chars(CStringT& out, int n, Ch ch)
         {
-			//加大缓冲区，防止内存抖动
-			out.GetBuffer(out.GetLength() + n);
             for (int i = 0; i != n; ++i)
 				out+= ch;
            // return out;
@@ -131,65 +120,7 @@ namespace rapidxml
     
         // Print node
 		template<class Ch, class CStringT>
-		inline void print_node(CStringT& out, const xml_node<Ch> *node, int flags, int indent)
-        {
-            // Print proper node type
-            switch (node->type())
-            {
-
-            // Document
-            case node_document:
-                print_children(out, node, flags, indent);
-                break;
-
-            // Element
-            case node_element:
-                print_element_node(out, node, flags, indent);
-                break;
-            
-            // Data
-            case node_data:
-                print_data_node(out, node, flags, indent);
-                break;
-            
-            // CDATA
-            case node_cdata:
-                print_cdata_node(out, node, flags, indent);
-                break;
-
-            // Declaration
-            case node_declaration:
-                print_declaration_node(out, node, flags, indent);
-                break;
-
-            // Comment
-            case node_comment:
-                print_comment_node(out, node, flags, indent);
-                break;
-            
-            // Doctype
-            case node_doctype:
-                print_doctype_node(out, node, flags, indent);
-                break;
-
-            // Pi
-            case node_pi:
-                print_pi_node(out, node, flags, indent);
-                break;
-
-                // Unknown
-            default:
-                assert(0);
-                break;
-            }
-            
-            // If indenting not disabled, add line break after node
-            if (!(flags & print_no_indenting))
-                out += Ch('\n');
-
-            // Return modified iterator
-            //return out;
-        }
+		inline void print_node(CStringT& out, const xml_node<Ch> *node, int flags, int indent);
         
         // Print children of the node                               
         template<class Ch,class CStringT>
@@ -209,23 +140,9 @@ namespace rapidxml
                 if (attribute->name() && attribute->value())
                 {
                     // Print attribute name
-                    //out += Ch(' ');
-                    //out.Append(attribute->name(), attribute->name_size());
-
-					//out += Ch('=');// , ++out;
-
-					DWORD OldLength = out.GetLength();
-					DWORD NameSize= attribute->name_size();
-
-					Ch* pData=out.GetBufferSetLength(OldLength+3+ NameSize)+ OldLength;
-
-					*pData = Ch(' ');
-					++pData;
-					memcpy(pData, attribute->name(), NameSize*sizeof(Ch));
-					pData += NameSize;
-					*pData = Ch('=');
-					++pData;
-					*pData = Ch('"');
+                    out += Ch(' ');
+					copy_chars(attribute->name(), attribute->name() + attribute->name_size(), out);
+					out += Ch('=');// , ++out;
 
                     // Print attribute value using appropriate quote type
                    // if (/*find_char<Ch, Ch('"')>(attribute->value(), attribute->value() + attribute->value_size())*/StrChrNW(attribute->value(),L'"', attribute->value_size()))
@@ -236,7 +153,7 @@ namespace rapidxml
       //              }
       //              else
                     {
-						//out += Ch('"');// , ++out;
+						out += Ch('"');// , ++out;
                         copy_and_expand_chars(attribute->value(), attribute->value() + attribute->value_size(), Ch('\''), out);
 						out += Ch('"');// , ++out;
                     }
@@ -274,7 +191,7 @@ namespace rapidxml
             out += Ch('T');
             out += Ch('A');
             out += Ch('[');
-			out.Append(node->value() , node->value_size());
+			copy_chars(node->value(), node->value() + node->value_size(), out);
             out += Ch(']');
             out += Ch(']');
             out += Ch('>');
@@ -291,8 +208,7 @@ namespace rapidxml
                 fill_chars(out, indent, Ch('\t'));
 
 			out += Ch('<');
-			out.Append(node->name() , node->name_size());
-			//copy_chars(node->name(), node->name() + node->name_size(), out);
+			copy_chars(node->name(), node->name() + node->name_size(), out);
             print_attributes(out, node, flags);
             
             // If node is childless
@@ -333,8 +249,7 @@ namespace rapidxml
                 // Print node end
 				out += Ch('<');
 				out += Ch('/');
-                //copy_chars(node->name(), node->name() + node->name_size(), out);
-				out.Append(node->name(), node->name_size());
+                copy_chars(node->name(), node->name() + node->name_size(), out);
 
 				out += Ch('>');
             }
@@ -377,7 +292,7 @@ namespace rapidxml
 			out += Ch('-');
 			out += Ch('-');
 
-			out.Append(node->value(), node->value_size());
+			copy_chars(node->value(), node->value() + node->value_size(), out);
             
 			out += Ch('-');
 			out += Ch('-');
@@ -403,7 +318,7 @@ namespace rapidxml
 			out += Ch('E');
 			out += Ch(' ');
 
-			out.Append(node->value(), node->value_size());
+			copy_chars(node->value(), node->value() + node->value_size(), out);
 			out += Ch('>');
         }
 
@@ -417,13 +332,75 @@ namespace rapidxml
 
 			out += Ch('<');
 			out += Ch('?');
-			out.Append(node->name(), node->name_size());
+			copy_chars(node->name(), node->name() + node->name_size(), out);
 
 			out += Ch(' ');
-			out.Append(node->value(), node->value_size());
+			copy_chars(node->value(), node->value() + node->value_size(), out);
 			out += Ch('?');
 			out += Ch('>');
         }
+
+		// Print node
+		template<class Ch, class CStringT>
+		inline void print_node(CStringT& out, const xml_node<Ch> *node, int flags, int indent)
+		{
+			// Print proper node type
+			switch (node->type())
+			{
+
+				// Document
+			case node_document:
+				print_children(out, node, flags, indent);
+				break;
+
+				// Element
+			case node_element:
+				print_element_node(out, node, flags, indent);
+				break;
+
+				// Data
+			case node_data:
+				print_data_node(out, node, flags, indent);
+				break;
+
+				// CDATA
+			case node_cdata:
+				print_cdata_node(out, node, flags, indent);
+				break;
+
+				// Declaration
+			case node_declaration:
+				print_declaration_node(out, node, flags, indent);
+				break;
+
+				// Comment
+			case node_comment:
+				print_comment_node(out, node, flags, indent);
+				break;
+
+				// Doctype
+			case node_doctype:
+				print_doctype_node(out, node, flags, indent);
+				break;
+
+				// Pi
+			case node_pi:
+				print_pi_node(out, node, flags, indent);
+				break;
+
+				// Unknown
+			default:
+				assert(0);
+				break;
+			}
+
+			// If indenting not disabled, add line break after node
+			if (!(flags & print_no_indenting))
+				out += Ch('\n');
+
+			// Return modified iterator
+			//return out;
+		}
 
     }
     //! \endcond
